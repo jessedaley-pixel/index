@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Oregon Trail — Computer Class</title>
+<style>
+  :root{
+    --bg:#07132a; --card:#0b1220; --accent:#7dd3fc; --muted:#94a3b8; --good:#34d399; --bad:#fb7185;
+  }
+  *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  body{margin:0;background:linear-gradient(180deg,#07132a 0%, #081827 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .wrap{width:960px;max-width:96%;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.7);position:relative}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  h1{font-size:18px;margin:0}
+  .meta{font-size:13px;color:var(--muted)}
+  .board{display:grid;grid-template-columns:300px 1fr;gap:14px}
+  .card{background:var(--card);padding:12px;border-radius:10px}
+  .mode-row{display:flex;gap:8px;margin-top:8px}
+  .btn{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#04263a;cursor:pointer}
+  .mode{background:rgba(125,211,252,0.12);color:var(--accent);border:1px solid rgba(125,211,252,0.08)}
+  .mode.active{background:var(--accent);color:#04263a}
+  .player-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .player-btn{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;border:0;background:#083358;color:#e6eef6;cursor:pointer;justify-content:space-between}
+  .player-btn:hover{background:rgba(125,211,252,0.07)}
+  .player-btn.assigned1{box-shadow:inset 0 0 0 2px rgba(125,211,252,0.12);background:linear-gradient(90deg,#083358,#0ea5b3)}
+  .player-btn.assigned2{box-shadow:inset 0 0 0 2px rgba(252,165,165,0.08);background:linear-gradient(90deg,#5b1f1f,#fca5a5)}
+  .main-screen{display:flex;flex-direction:column;min-height:380px}
+  .scene{flex:1;display:flex;gap:12px}
+  .player-col{flex:1;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;display:flex;flex-direction:column;gap:8px;align-items:stretch}
+  .scene-prompt{font-size:16px;min-height:48px}
+  .opt{padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);cursor:pointer;text-align:center;border:1px solid rgba(255,255,255,0.02);transition:all .12s}
+  .opt:hover{transform:translateY(-3px);background:rgba(125,211,252,0.07)}
+  .opt.selected{background:var(--good);color:#04263a;border-color:rgba(52,211,153,0.15)}
+  .opt.selected2{background:var(--accent);color:#04263a;border-color:rgba(125,211,252,0.15)}
+  .points{font-size:13px;color:var(--muted)}
+  .log{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;height:140px;overflow:auto;font-size:13px;margin-top:10px}
+  .reset{position:absolute;top:14px;right:14px;padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#04263a;cursor:pointer}
+  footer.copy{margin-top:10px;text-align:center;color:var(--muted);font-size:12px}
+  .flex-row{display:flex;justify-content:space-between;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="wrap" role="application">
+    <button class="reset" id="newGame">New Game</button>
+    <header>
+      <div>
+        <h1>Oregon Trail — Computer Class</h1>
+        <div class="meta">Choose your student(s), make classroom choices — avoid Mr S's deductions and reach the end of day.</div>
+      </div>
+      <div class="meta">Students start with <strong>5 points</strong>.</div>
+    </header>
+
+    <div class="board">
+      <aside class="card">
+        <div><strong>Select Mode</strong></div>
+        <div class="mode-row" style="margin-bottom:8px">
+          <button id="mode1" class="mode">1 Player</button>
+          <button id="mode2" class="mode">2 Player</button>
+        </div>
+
+        <div><strong>Select Student(s)</strong></div>
+        <div class="player-list" id="playerSelect">
+          <!-- buttons injected -->
+        </div>
+
+        <div style="margin-top:12px" class="small">Player assignment note: in 2-player mode first click → Player 1, second click (different student) → Player 2.</div>
+      </aside>
+
+      <main class="card main-screen">
+        <div class="flex-row" style="margin-bottom:8px">
+          <div id="statusHeader"><strong>Select mode and students to begin</strong></div>
+          <div class="small" id="progressText">Round: - / -</div>
+        </div>
+
+        <div id="sceneArea" class="scene">
+          <div style="flex:1;text-align:center;margin-top:40px" class="small">Select mode and characters to begin</div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start;margin-top:10px">
+          <div style="flex:1">
+            <div class="small">Mr S Log</div>
+            <div class="log" id="gameLog" aria-live="polite"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <footer class="copy">Tip: choices can affect both players — some options hurt both of you.</footer>
+  </div>
+
+<script>
+/* ======= Data ======= */
+const students = [
+  {id:'jay',name:'Jay',color:'#7dd3fc'},
+  {id:'zee',name:'Zee',color:'#fca5a5'},
+  {id:'aid',name:'Aid',color:'#bbf7d0'}
+];
+
+// 1-player scenes (10)
+const scenes1P = [
+  {prompt:"Class is about to start! You:", options:[{text:"Get to class late",correct:false},{text:"Arrive seconds before the bell rings",correct:true}]},
+  {prompt:"Mr S asks you to make a video. You:", options:[{text:"Do it",correct:true},{text:"Do not",correct:false}]},
+  {prompt:"Mr S brought out a drone! What do you do?", options:[{text:"Crash it into something",correct:false},{text:"Fly it responsibly",correct:true}]},
+  {prompt:"Class is slow right now. You:", options:[{text:"Stare at a 3D print",correct:true},{text:"Do your work",correct:false}]},
+  {prompt:"Break is over! You:", options:[{text:"Offer Mr S a game of poker",correct:false},{text:"Go back to work",correct:true}]},
+  {prompt:"Mr S asks 'Are you slacking?' You say:", options:[{text:"Yes",correct:false},{text:"No",correct:true}]},
+  {prompt:"Uh oh! Something's broken in shop! You:", options:[{text:"Do the easiest thing first",correct:true},{text:"Try everything else",correct:false}]},
+  {prompt:"The songs have stopped playing on the board.", options:[{text:"Click next in playlist",correct:true},{text:"Play your own music",correct:false}]},
+  {prompt:"Someone on Mr Z's side is doing something cool:", options:[{text:"Go see what's cool",correct:false},{text:"Stay on your side",correct:true}]},
+  {prompt:"End of the day — but Mr S hasn't called cleanup:", options:[{text:"Clean up anyways",correct:false},{text:"Do nothing",correct:true}]}
+];
+
+// 10 fully branching 2-player scenarios
+const scenarios2P = [
+  {
+    player1:{prompt:"Your partner glances at your test. Let them cheat?", options:[{text:"Yes",value:'let'},{text:"No",value:'no'}]},
+    player2:{prompt:"You are stuck. Cheat off P1?", options:[{text:"Yes",value:'cheat'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{
+      let p1=0,p2=0,m1="",m2="";
+      if(c1==='let' && c2==='cheat'){p1--; p2--; m1="Mr S: Letting cheating! -1"; m2="Mr S: Caught cheating! -1";}
+      else if(c1==='no' && c2==='cheat'){p2--; m1="Mr S: Good choice"; m2="Mr S: Caught cheating! -1";}
+      else if(c1==='let' && c2==='no'){p1--; m1="Mr S: Don't let them cheat! -1"; m2="Mr S: Nice restraint";}
+      else {p1++; p2++; m1="Mr S: Honesty +1"; m2="Mr S: Honesty +1";}
+      return {p1,p2,m1,m2};
+    }
+  },
+  {
+    player1:{prompt:"Class is slow. Tinker with the 3D printer?", options:[{text:"Yes",value:'tinker'},{text:"No",value:'no'}]},
+    player2:{prompt:"Peek at P1's tinkering?", options:[{text:"Yes",value:'peek'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='tinker'){p1++; m1="Mr S: Initiative +1"} else {p1--; m1="Mr S: Wasting time -1"} if(c2==='peek'){p2--; m2="Mr S: Stop peeking! -1"} else {m2="Mr S: Good focus"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"Break time! Play a game?", options:[{text:"Yes",value:'play'},{text:"No",value:'no'}]},
+    player2:{prompt:"Join P1's game?", options:[{text:"Yes",value:'join'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='play'){p1--; m1="Mr S: Too distracting -1"} else {p1++; m1="Mr S: Focus +1"} if(c2==='join'){p2--; m2="Mr S: Stop playing -1"} else {p2++; m2="Mr S: Good focus +1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"Machine broke — fix it or wait?", options:[{text:"Fix it",value:'fix'},{text:"Wait",value:'wait'}]},
+    player2:{prompt:"P1 fixing machine. Help?", options:[{text:"Yes",value:'help'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='fix'){p1++; m1="Mr S: Good initiative +1"} else {p1--; m1="Mr S: Delaying -1"} if(c2==='help'){p2++; m2="Mr S: Helpful +1"} else {p2--; m2="Mr S: Ignoring -1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"Mr S needs materials organized. Do you help?", options:[{text:"Yes",value:'help'},{text:"No",value:'no'}]},
+    player2:{prompt:"P1 is organizing — assist?", options:[{text:"Yes",value:'assist'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='help'){p1++; m1="Mr S: Helpful +1"} else {p1--; m1="Mr S: Ignoring -1"} if(c2==='assist'){p2++; m2="Mr S: Cooperative +1"} else {p2--; m2="Mr S: Ignoring -1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"You find a new game on the lab PC. Play?", options:[{text:"Yes",value:'play'},{text:"No",value:'no'}]},
+    player2:{prompt:"Join P1 in the new game?", options:[{text:"Yes",value:'join'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='play'){p1--; m1="Mr S: Distracting -1"} else {p1++; m1="Mr S: Focus +1"} if(c2==='join'){p2--; m2="Mr S: Distracting -1"} else {p2++; m2="Mr S: Focus +1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"Printer jammed — fix or wait?", options:[{text:"Fix",value:'fix'},{text:"Wait",value:'wait'}]},
+    player2:{prompt:"Watch P1 fix printer?", options:[{text:"Yes",value:'watch'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='fix'){p1++; m1="Mr S: Good initiative +1"} else {p1--; m1="Mr S: Delay -1"} if(c2==='watch'){p2--; m2="Mr S: Distracted -1"} else {p2++; m2="Mr S: Focus +1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"P2 broke something accidentally. Report?", options:[{text:"Yes",value:'report'},{text:"No",value:'no'}]},
+    player2:{prompt:"Caught breaking something. Apologize?", options:[{text:"Yes",value:'apology'},{text:"No",value:'lie'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='report'){p1++; m1="Mr S: Reporting +1"} else {p1--; m1="Mr S: Ignored -1"} if(c2==='apology'){p2++; m2="Mr S: Apology accepted +1"} else {p2--; m2="Mr S: Lying -1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"Final presentation — present or skip?", options:[{text:"Present",value:'present'},{text:"Skip",value:'skip'}]},
+    player2:{prompt:"Assist P1 during presentation?", options:[{text:"Yes",value:'assist'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='present'){p1++; m1="Mr S: Presentation +1"} else {p1--; m1="Mr S: Missed opportunity -1"} if(c2==='assist'){p2++; m2="Mr S: Helpful +1"} else {p2--; m2="Mr S: Didn't assist -1"} return {p1,p2,m1,m2}; }
+  },
+  {
+    player1:{prompt:"End of day reflection — write it or skip?", options:[{text:"Write",value:'write'},{text:"Skip",value:'skip'}]},
+    player2:{prompt:"Discuss the day with P1?", options:[{text:"Yes",value:'discuss'},{text:"No",value:'no'}]},
+    resolve:(c1,c2)=>{ let p1=0,p2=0,m1="",m2=""; if(c1==='write'){p1++; m1="Mr S: Reflection +1"} else {p1--; m1="Mr S: Missed reflection -1"} if(c2==='discuss'){p2++; m2="Mr S: Good collaboration +1"} else {p2--; m2="Mr S: Missed chance -1"} return {p1,p2,m1,m2}; }
+  }
+];
+
+/* ======= State ======= */
+let mode = 'single'; // 'single' or 'multi'
+let sp = { student: null, points: 5, step: 0 };
+let dp = { players: [null, null], points: [5,5], round: 0, choices: [null, null], sequence: [] };
+
+/* ======= Elements ======= */
+const playerSelect = document.getElementById('playerSelect');
+const sceneArea = document.getElementById('sceneArea');
+const gameLog = document.getElementById('gameLog');
+const statusHeader = document.getElementById('statusHeader');
+const progressText = document.getElementById('progressText');
+const btnMode1 = document.getElementById('mode1');
+const btnMode2 = document.getElementById('mode2');
+const newGameBtn = document.getElementById('newGame');
+
+/* ======= Utilities ======= */
+function log(msg){
+  const d = document.createElement('div');
+  d.textContent = `${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} — ${msg}`;
+  gameLog.prepend(d);
+}
+function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+
+/* ======= Render player buttons ======= */
+function renderPlayerButtons(){
+  playerSelect.innerHTML = '';
+  students.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'player-btn';
+    btn.style.background = s.color;
+    btn.innerHTML = `<span style="font-weight:700">${s.name}</span><span class="small" id="assign-${s.id}"></span>`;
+    btn.onclick = () => onPlayerClick(s.id, btn);
+    // if already assigned, mark visually
+    if(dp.players[0] && dp.players[0].id === s.id) btn.classList.add('assigned1');
+    if(dp.players[1] && dp.players[1].id === s.id) btn.classList.add('assigned2');
+    playerSelect.appendChild(btn);
+  });
+}
+
+/* ======= Mode buttons behavior ======= */
+btnMode1.onclick = () => {
+  mode = 'single';
+  btnMode1.classList.add('active');
+  btnMode2.classList.remove('active');
+  // reset dp players selection UI but keep underlying dp cleared
+  dp = { players: [null,null], points: [5,5], round:0, choices:[null,null], sequence:[] };
+  sp = { student:null, points:5, step:0 };
+  updateHeader();
+  renderPlayerButtons();
+  sceneArea.innerHTML = `<div style="flex:1;text-align:center;margin-top:40px" class="small">Select a student for 1-player mode</div>`;
+  gameLog.innerHTML = '';
+};
+
+btnMode2.onclick = () => {
+  mode = 'multi';
+  btnMode2.classList.add('active');
+  btnMode1.classList.remove('active');
+  dp = { players: [null,null], points: [5,5], round:0, choices:[null,null], sequence:[] };
+  sp = { student:null, points:5, step:0 };
+  updateHeader();
+  renderPlayerButtons();
+  sceneArea.innerHTML = `<div style="flex:1;text-align:center;margin-top:40px" class="small">Select Player 1 and Player 2 (two different students)</div>`;
+  gameLog.innerHTML = '';
+};
+
+/* ======= New Game ======= */
+newGameBtn.onclick = () => {
+  mode = 'single';
+  sp = { student:null, points:5, step:0 };
+  dp = { players: [null,null], points: [5,5], round:0, choices:[null,null], sequence:[] };
+  btnMode1.classList.remove('active');
+  btnMode2.classList.remove('active');
+  renderPlayerButtons();
+  sceneArea.innerHTML = `<div style="flex:1;text-align:center;margin-top:40px" class="small">Select mode and characters to begin</div>`;
+  gameLog.innerHTML = '';
+  updateHeader();
+};
+
+/* ======= When user clicks a student button ======= */
+function onPlayerClick(id, btnElement){
+  // Visual active for clicked button only (to show last clicked)
+  Array.from(playerSelect.children).forEach(b => b.classList.remove('active'));
+  btnElement.classList.add('active');
+
+  if(mode === 'single'){
+    // select for single-player
+    const stud = students.find(s=>s.id===id);
+    sp.student = stud;
+    sp.points = 5;
+    sp.step = 0;
+    log(`${stud.name} selected for 1-player mode.`);
+    updateHeader();
+    renderScene1P();
+    // clear any previous dp assignment UI
+    dp.players = [null, null];
+    renderPlayerButtons();
+    // mark this button as active selection
+    btnElement.classList.add('assigned1');
+  } else {
+    // multi: assign to next empty slot (player1 then player2). Prevent duplicate.
+    if(!dp.players[0]){
+      dp.players[0] = students.find(s=>s.id===id);
+      btnElement.classList.add('assigned1');
+      log(`${dp.players[0].name} assigned to Player 1.`);
+      // update label
+    } else if(!dp.players[1] && dp.players[0].id !== id){
+      dp.players[1] = students.find(s=>s.id===id);
+      btnElement.classList.add('assigned2');
+      log(`${dp.players[1].name} assigned to Player 2.`);
+    } else if(dp.players[0] && dp.players[1] && dp.players[0].id === id){
+      // clicking already-assigned player1: allow switching -> remove player1 (toggle)
+      // but simpler: do nothing; user can New Game to reassign
+    }
+    // If both selected, prepare sequence and start
+    if(dp.players[0] && dp.players[1]){
+      dp.points = [5,5];
+      dp.round = 0;
+      dp.choices = [null,null];
+      // create a randomized unique sequence of the 10 scenarios
+      dp.sequence = shuffle(scenarios2P).slice(0, scenarios2P.length);
+      log(`${dp.players[0].name} & ${dp.players[1].name} selected for 2-player mode. Starting...`);
+      updateHeader();
+      renderScene2P();
+    }
+    // re-render to reflect assignment styles
+    renderPlayerButtons();
+    updateHeader();
+  }
+}
+
+/* ======= Header/Progress update ======= */
+function updateHeader(){
+  if(mode==='single'){
+    if(sp.student) statusHeader.innerHTML = `<strong>${sp.student.name} — 1 Player</strong>`;
+    else statusHeader.innerHTML = `<strong>Select a student for 1-player</strong>`;
+    progressText.textContent = `Step: ${sp.step}/${scenes1P.length}`;
+  } else {
+    if(dp.players[0] && dp.players[1]) statusHeader.innerHTML = `<strong>${dp.players[0].name} (P1) & ${dp.players[1].name} (P2)</strong>`;
+    else statusHeader.innerHTML = `<strong>Select two students for 2-player</strong>`;
+    progressText.textContent = `Round: ${Math.min(dp.round+1, dp.sequence.length)}/${dp.sequence.length || scenarios2P.length}`;
+  }
+}
+
+/* ======= 1-player render ======= */
+function renderScene1P(){
+  updateHeader();
+  if(!sp.student){
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center;margin-top:40px" class="small">Pick a student for 1-player mode</div>`;
+    return;
+  }
+  if(sp.points <= 0){
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center"><h2>Detention — Game Over</h2><div class="small">${sp.student.name} reached 0 points.</div></div>`;
+    log(`${sp.student.name} went to detention (0 points).`);
+    return;
+  }
+  if(sp.step >= scenes1P.length){
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center"><h2>End of Day</h2><div class="small">${sp.student.name} finished the day with ${sp.points} point(s).</div></div>`;
+    log(`${sp.student.name} finished the day with ${sp.points} point(s).`);
+    return;
+  }
+
+  const sc = scenes1P[sp.step];
+  sceneArea.innerHTML = '';
+  const col = document.createElement('div'); col.className = 'player-col';
+  const prompt = document.createElement('div'); prompt.className = 'scene-prompt'; prompt.textContent = sc.prompt; col.appendChild(prompt);
+
+  sc.options.forEach(opt => {
+    const b = document.createElement('div'); b.className = 'opt'; b.textContent = opt.text;
+    b.onclick = () => {
+      // highlight selection
+      Array.from(col.querySelectorAll('.opt')).forEach(x=>x.classList.remove('selected'));
+      b.classList.add('selected');
+      if(opt.correct){ log(`${sp.student.name}: Good choice.`); }
+      else { sp.points -= 1; log(`${sp.student.name}: Wrong choice — Mr S deducted 1 point. (${sp.points} left)`); }
+      sp.step++;
+      updateHeader();
+      setTimeout(renderScene1P, 650);
+    };
+    col.appendChild(b);
+  });
+
+  const pointsLine = document.createElement('div'); pointsLine.className = 'points'; pointsLine.textContent = `Points: ${sp.points}`;
+  col.appendChild(pointsLine);
+  sceneArea.appendChild(col);
+}
+
+/* ======= 2-player render ======= */
+function renderScene2P(){
+  updateHeader();
+  if(!dp.players[0] || !dp.players[1]){
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center;margin-top:40px" class="small">Select Player 1 and Player 2 (two different students)</div>`;
+    return;
+  }
+
+  if(dp.points[0] <= 0 || dp.points[1] <= 0){
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center"><h2>Game Over</h2><div class="small">One of the players reached 0 points.</div></div>`;
+    log(`Game ended early — one player hit 0 points.`);
+    return;
+  }
+
+  if(dp.round >= dp.sequence.length){
+    // end of day summary
+    const summaries = dp.players.map((p, i) => {
+      let verdict = dp.points[i] >= 8 ? "Excellent day" : dp.points[i] >= 5 ? "Decent day" : dp.points[i] >= 1 ? "Struggled" : "Detention";
+      return `${p.name} — ${dp.points[i]} pts — ${verdict}`;
+    });
+    sceneArea.innerHTML = `<div style="flex:1;text-align:center"><h2>End of Day</h2><div class="small">${summaries.join('<br>')}</div></div>`;
+    log(`End of day: ${summaries.join(' | ')}`);
+    return;
+  }
+
+  // Normal round
+  const sc = dp.sequence[dp.round];
+  sceneArea.innerHTML = '';
+
+  ['player1','player2'].forEach((slot, idx) => {
+    const col = document.createElement('div'); col.className = 'player-col';
+    const player = dp.players[idx];
+    const header = document.createElement('div'); header.innerHTML = `<strong>${player.name} (P${idx+1})</strong>`; col.appendChild(header);
+
+    const prompt = document.createElement('div'); prompt.className = 'scene-prompt'; prompt.textContent = sc[slot].prompt; col.appendChild(prompt);
+
+    sc[slot].options.forEach(opt => {
+      const b = document.createElement('div'); b.className = 'opt'; b.textContent = opt.text;
+      b.onclick = () => {
+        // highlight only inside this column
+        Array.from(col.querySelectorAll('.opt')).forEach(x => x.classList.remove('selected'));
+        b.classList.add('selected');
+
+        dp.choices[idx] = opt.value;
+
+        // if both chosen → resolve
+        if(dp.choices[0] && dp.choices[1]){
+          // lock UI during resolution by removing onclick
+          Array.from(document.querySelectorAll('.opt')).forEach(x => x.onclick = null);
+
+          const res = sc.resolve(dp.choices[0], dp.choices[1]);
+          dp.points[0] += res.p1;
+          dp.points[1] += res.p2;
+
+          // dynamic messages that depend on the new point totals
+          log(`${dp.players[0].name}: ${res.m1} (Points: ${dp.points[0]})`);
+          log(`${dp.players[1].name}: ${res.m2} (Points: ${dp.points[1]})`);
+
+          // prepare next round
+          dp.choices = [null, null];
+          dp.round++;
+          updateHeader();
+          setTimeout(renderScene2P, 900);
+        }
+      };
+      col.appendChild(b);
+    });
+
+    const pts = document.createElement('div'); pts.className = 'points'; pts.textContent = `Points: ${dp.points[idx]}`;
+    col.appendChild(pts);
+
+    sceneArea.appendChild(col);
+  });
+
+  // show progress
+  progressText.textContent = `Round: ${Math.min(dp.round+1, dp.sequence.length)}/${dp.sequence.length}`;
+}
+
+/* ======= Initial setup ======= */
+renderPlayerButtons();
+updateHeader();
+
+/* ======= Expose functions for single key testing (optional) ======= */
+window._debug = { renderScene1P, renderScene2P, sp, dp };
+
+</script>
+</body>
+</html>
